@@ -1,5 +1,14 @@
 # dsh-ui-taskcards
 
+<p align="center">
+  <a href="https://github.com/ydlly224/dsh-ui-taskcards"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-ydlly224%2Fdsh-ui-taskcards-181717?logo=github"></a>
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
+  <img alt="DSH" src="https://img.shields.io/badge/DSH-0.1.x%20~%200.2.x-8A2BE2">
+  <a href="https://github.com/topics/dsh-plugin"><img alt="dsh-plugin" src="https://img.shields.io/badge/topic-dsh--plugin-blueviolet"></a>
+</p>
+
+<p align="center"><img src="docs/screenshot.png" width="360" alt="sidebar tab screenshot"></p>
+
 DSH（DeepSeek Harness）Web UI 的纯客户端插件：**官方右侧栏原生标签页「待办任务」**（`sidebarRightTabs` 注册类型 + `sidebar.right.pane.tab` 槽位，与「工作区文件/浏览器/终端」同一套 dock 体验：可拖拽分栏、全屏、宽度拖拽、会话级布局记忆）+ 输入框固定按钮（`conversation.composer.dock`）。
 
 > 兼容性：DSH Web 0.1.x ~ 0.2.x（依赖官方 `sidebarRightTabs` 服务与 `sidebar.right.pane.tab` 槽位；在 0.2.1-rc.2 上验证）。纯客户端 bundle，无 npm 依赖。
@@ -48,3 +57,11 @@ node --check lib/client.js  # 通过
 - 定时触发需页面开启；关闭期间错过的到期卡下次打开补触发一次
 - 轮次归因是会话级近似；用户排队消息会推迟顺序执行推进（不卡死不跳队）
 - v1 单窗口约束（多窗口写冲突靠 storage 事件尽力同步）
+
+## English
+
+A pure client-side plugin for [DeepSeek Harness](https://github.com/deepseek-ai) Web UI: registers a **native right-sidebar tab** (`sidebarRightTabs`) — a **Todo Tasks** tab that captures session todos as durable cards with run / schedule / sequential execution and history.
+
+- Repo: https://github.com/ydlly224/dsh-ui-taskcards
+- Install: `dsh plugin --profile web add git+https://github.com/ydlly224/dsh-ui-taskcards.git`, then register the bundle name in `~/.dsh/profiles/web/package.json` → `dsh.profile.bundles`, restart dsh web and refresh.
+- Extends: DSH Web 0.1.x ~ 0.2.x (verified on 0.2.1-rc.2); pure client bundle, zero dependencies.

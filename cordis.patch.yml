@@ -1,0 +1,4 @@
+# dsh-ui-taskcards bundle patch：注册纯客户端插件入口（host 半边形为 no-op）。
+- insert:
+    - id: ui-taskcards
+      name: 'dsh-ui-taskcards'

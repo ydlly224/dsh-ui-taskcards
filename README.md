@@ -9,7 +9,7 @@
 
 <p align="center"><img src="docs/screenshot.png" width="360" alt="sidebar tab screenshot"></p>
 
-DSH（DeepSeek Harness）Web UI 的纯客户端插件：**官方右侧栏原生标签页「待办任务」**（`sidebarRightTabs` 注册类型 + `sidebar.right.pane.tab` 槽位，与「工作区文件/浏览器/终端」同一套 dock 体验：可拖拽分栏、全屏、宽度拖拽、会话级布局记忆）+ 输入框固定按钮（`conversation.composer.dock`）。
+DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）：**官方右侧栏原生标签页「待办任务」**（`sidebarRightTabs` 注册类型 + `sidebar.right.pane.tab` 槽位，与「工作区文件/浏览器/终端」同一套 dock 体验：可拖拽分栏、全屏、宽度拖拽、会话级布局记忆）+ 输入框固定按钮（`conversation.composer.dock`）。
 
 > 兼容性：DSH Web 0.1.x ~ 0.2.x（依赖官方 `sidebarRightTabs` 服务与 `sidebar.right.pane.tab` 槽位；在 0.2.1-rc.2 上验证）。纯客户端 bundle，无 npm 依赖。
 
@@ -21,6 +21,7 @@ DSH（DeepSeek Harness）Web UI 的纯客户端插件：**官方右侧栏原生�
 - **顺序执行**：每会话一台状态机（idle/dispatching/waiting-running/waiting-interaction/advancing/stopped）；复合轮次结束判定（running=false 且收件队列空，队列不可探测时降级为 3s 连续空闲）；pendingInteraction 暂停 + 10s 恢复计时；批次内同工作区复用新建会话（`seqIsolatedSessions` 可切逐卡新建）；连续 3 张 blocked 即停止；顺序执行开关（⛓）默认关闭且不持久化（每次打开页面需手动开启）；由会话 todos 自动捕获的卡片默认不加入顺序执行队列，可在「修改」中显式加入；跨窗口存储同步时会立即停止本窗口在途的顺序执行批次
 - **目标解析**：会话存活→直接派发+归属自愈；无会话有工作区→`sessions.create({workspaceId})` 新建并回写；否则拦截引导设置工作区
 - **幂等**：write-ahead lastDispatch + requestId 单飞检查；跨窗口 storage 事件同步
+- **会话通知（agent 工具）**：宿主半边注册 agent 工具 `taskcard_notify(target, content)` 与会话投影 `taskcards`。任意会话的 agent 调用该工具后，本插件自动生成一张**已预设目标会话/工作区**的待办任务卡（来源标记「会话通知」，默认不加入顺序执行），用户只需在面板点一次【执行】即把任务投递到目标会话；`target` 支持目标会话标题或会话 id 前缀，未命中时生成未绑定目标的卡片并提示手动指定。**该能力需要重启一次 dsh web 加载宿主半边**（客户端部分刷新页面即可）
 - **入口（方案 B）**：右侧栏「+ 新标签页 → 待办任务」添加（引导入口），打开后与文件/浏览器面板同款 dock 行为；面板内创建任务默认绑定该标签页所属会话；旧的 shell.overlay 抽屉已移除
 
 ## 文件
@@ -28,9 +29,25 @@ DSH（DeepSeek Harness）Web UI 的纯客户端插件：**官方右侧栏原生�
 | 文件 | 说明 |
 | --- | --- |
 | `package.json` | dsh.client.inject：locale / ui-conversation / ui-primitives / ui-workspace |
-| `cordis.patch.yml` | bundle patch（host 半边 no-op） |
-| `lib/index.js` | host stub |
+| `cordis.patch.yml` | bundle patch（宿主注册工具 `taskcard_notify` 与会话投影 `taskcards`） |
+| `lib/index.js` | 宿主半边：注册 agent 工具 `taskcard_notify` + session projection `taskcards`（零 npm 依赖，运行时只用到 `.parse`，故用 pass-through schema） |
 | `lib/client.js` | 浏览器 bundle（ModuleLoader CJS 工厂，单文件 region 分区） |
+
+## 会话通知（agent 工具 `taskcard_notify`）
+
+半自动跨会话投递：让某个会话的 agent 把任务「投」给另一个会话。
+
+1. 会话 A 的 agent 调用工具：
+   ```json
+   { "target": "部署会话", "content": "任务A：升级 staging 并回报结果" }
+   ```
+   `target` 也可以是会话 id 前缀（如 `#7bb53fb7` 风格的前几位）。
+2. 【待办任务】面板自动出现一张卡片：标题/派发文本 = `content`，**执行会话/工作区已预设为 target 对应会话**，来源「会话通知」，默认不参与顺序执行。
+3. 你在面板点一次【执行】→ 任务以用户消息形式投递到目标会话（queue 模式，目标忙时排队），卡片状态随后按回合观察器更新（queued → running → done）。
+
+实现要点：工具向调用方会话 append `taskcards/notify` 事件；宿主投影 fold 成 `{ notices: [...] }`（最多 20 条）；客户端从 `projectionValues.taskcards.notices` 消费并去重（`noticeSeen` 持久化），因此刷新页面不会重复建卡。
+
+> ⚠️ 宿主半边（`lib/index.js`）在 dsh web 启动时加载：**首次安装或升级含宿主改动的版本后，需要重启一次 dsh web**；仅客户端改动刷新页面即可。
 
 ## 安装
 

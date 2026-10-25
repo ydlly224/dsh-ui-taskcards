@@ -1,6 +1,6 @@
 {
   "name": "dsh-ui-taskcards",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "engines": {
     "node": ">=18.0.0",
     "dsh": ">=0.1.0-rc.8 <0.3.0"

@@ -63,7 +63,9 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 2. 【待办任务】面板自动出现一张卡片：标题/派发文本 = `content`，**执行会话/工作区已预设为 target 对应会话**，来源「会话通知」，默认不参与顺序执行。
 3. 你在面板点一次【执行】→ 任务以用户消息形式投递到目标会话（queue 模式，目标忙时排队），卡片状态随后按回合观察器更新（queued → running → done）。
 
-实现要点：工具向调用方会话 append `taskcards/notify` 事件；宿主投影 fold 成 `{ notices: [...] }`（最多 20 条）；客户端从 `projectionValues.taskcards.notices` 消费并去重（`noticeSeen` 持久化），因此刷新页面不会重复建卡。
+实现要点：工具通过官方 `appendPluginRecord` 向调用方会话写入**插件记录事件** `plugin:ui-taskcards/notify`（带 `ignorable` 标记，宿主重启后仍可正常加载；不会因未知事件类型拒读会话日志）；宿主投影 fold 成 `{ notices: [...] }`（最多 20 条），并**同时兼容旧事件类型** `taskcards/notify`（历史会话的卡片照常显示）；客户端从 `projectionValues.taskcards.notices` 消费并去重（`noticeSeen` 持久化），因此刷新页面不会重复建卡。
+
+> 依赖说明：`appendPluginRecord` 来自宿主自带的 `@deepseek-ai/dsh-session`（本插件不打包、不引入 npm 依赖，运行时从宿主安装目录解析；解析不到时工具会明确报错并**不会**回退成裸 `session.append`，避免再次写坏会话日志）。
 
 > ⚠️ 宿主半边（`lib/index.js`）在 dsh web 启动时加载：**首次安装或升级含宿主改动的版本后，需要重启一次 dsh web**；仅客户端改动刷新页面即可。
 

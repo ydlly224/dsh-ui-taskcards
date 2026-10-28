@@ -16,7 +16,7 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 ## 功能
 
 - **采集**：会话 todos 投影 diff（LCS + 相似度 ≥0.8 模糊对齐）自动转卡（source=agent-todo；仅当前会话建卡）；卡片执行状态随 todos 自动同步（`in_progress`→`running`、`completed`→`done`，已入列/运行中的卡片不会被降级回待执行），且跨会话也能同步（非当前会话只同步已有卡片状态与失效标记）；输入框 📌 按钮固定草稿转卡（composer-pinned，不发送不清草稿）；面板快捷输入建卡（panel-input，`!` 前缀立即执行，多行粘贴逐行建卡）
-- **卡片**：编辑（标题/派发指令）、修改（工作区/会话/定时/顺序执行成员，仅 pending 可改目标）、执行（`sessions.prompt` mode=queue）；**回合观察器回写**（手动执行的卡：会话 running→`running`，回合结束且收件队列空→`done` 并自动归档；从未观察到 running 时需满 15s 快速回合窗口；目标会话消失 45s 后置 `failed`）；工作区/会话徽标（会话徽标点击 `uiWorkspace.openSession` 跳转）；拖拽 + ↑↓ 排序；终态自动归档（历史区可恢复/删除）
+- **卡片**：每张卡显示**建卡来源**（「建卡：<会话标题>」徽标，悬停可看建卡会话 id 与创建时间；通知卡=发起通知的会话，todo 卡=其所属会话，输入框/📌/导入=当时当前会话）、编辑（标题/派发指令）、修改（工作区/会话/定时/顺序执行成员，仅 pending 可改目标）、执行（`sessions.prompt` mode=queue）；**回合观察器回写**（手动执行的卡：会话 running→`running`，回合结束且收件队列空→`done` 并自动归档；从未观察到 running 时需满 15s 快速回合窗口；目标会话消失 45s 后置 `failed`）；工作区/会话徽标（会话徽标点击 `uiWorkspace.openSession` 跳转）；拖拽 + ↑↓ 排序；终态自动归档（历史区可恢复/删除）
 - **定时**：本地 30s 心跳调度器；设置定时时前置校验目标；到期派发后清除；补触发复用 requestId 幂等；到期目标失效即转 failed（防心跳反复拾起）；单轮心跳最多 3 张
 - **顺序执行**：每会话一台状态机（idle/dispatching/waiting-running/waiting-interaction/advancing/stopped）；复合轮次结束判定（running=false 且收件队列空，队列不可探测时降级为 3s 连续空闲）；pendingInteraction 暂停 + 10s 恢复计时；批次内同工作区复用新建会话（`seqIsolatedSessions` 可切逐卡新建）；连续 3 张 blocked 即停止；顺序执行开关（⛓）默认关闭且不持久化（每次打开页面需手动开启）；由会话 todos 自动捕获的卡片默认不加入顺序执行队列，可在「修改」中显式加入；跨窗口存储同步时会立即停止本窗口在途的顺序执行批次
 - **目标解析**：会话存活→直接派发+归属自愈；无会话有工作区→`sessions.create({workspaceId})` 新建并回写；否则拦截引导设置工作区

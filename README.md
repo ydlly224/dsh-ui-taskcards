@@ -65,6 +65,8 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 
 实现要点：工具通过官方 `appendPluginRecord` 向调用方会话写入**插件记录事件**（带 `ignorable` 标记，宿主重启后仍可正常加载；不会因未知事件类型拒读会话日志）；宿主投影 fold 成 `{ notices: [...], deletions: [...] }`（notices ≤20、deletions ≤50），并**同时兼容旧事件类型** `taskcards/notify`（历史会话的卡片照常显示）；客户端从 `projectionValues.taskcards` 消费并去重（`noticeSeen` / `deletionSeen` 持久化），因此刷新页面不会重复建卡/重复删卡。
 
+> 去重锚点：`noticeSeen` 上限 5000 条（必须大于通知总数，否则窗口外的旧通知会被当成新通知反复建卡）；建卡前会同时查活动卡与归档卡的 `diffKey`，命中即跳过；载入时还会从活动/归档里已有的 `notify:*` 卡片补齐 `noticeSeen`，升级后无需手工清理即可阻止旧卡重生。
+
 ### 删除卡片（`taskcard_delete`）
 
 Agent 可删除自己创建的错误/过期卡片（活动列表与历史归档都会删）：

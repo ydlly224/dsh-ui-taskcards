@@ -21,7 +21,7 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 - **顺序执行**：每会话一台状态机（idle/dispatching/waiting-running/waiting-interaction/advancing/stopped）；复合轮次结束判定（running=false 且收件队列空，队列不可探测时降级为 3s 连续空闲）；pendingInteraction 暂停 + 10s 恢复计时；批次内同工作区复用新建会话（`seqIsolatedSessions` 可切逐卡新建）；连续 3 张 blocked 即停止；顺序执行开关（⛓）默认关闭且不持久化（每次打开页面需手动开启）；由会话 todos 自动捕获的卡片默认不加入顺序执行队列，可在「修改」中显式加入；跨窗口存储同步时会立即停止本窗口在途的顺序执行批次
 - **目标解析**：会话存活→直接派发+归属自愈；无会话有工作区→`sessions.create({workspaceId})` 新建并回写；否则拦截引导设置工作区
 - **幂等**：write-ahead lastDispatch + requestId 单飞检查；跨窗口 storage 事件同步
-- **会话通知（agent 工具）**：宿主半边注册 agent 工具 `taskcard_notify(target, content)` 与会话投影 `taskcards`。任意会话的 agent 调用该工具后，本插件自动生成一张**已预设目标会话/工作区**的待办任务卡（来源标记「会话通知」，默认不加入顺序执行），用户只需在面板点一次【执行】即把任务投递到目标会话；`target` 支持标题**模糊匹配**（精确/前缀/包含）、「工作区-会话」复合写法或会话 id 前缀/包含（**不提供反向包含**）；同名会话**优先在通知来源会话所属工作区**内解析，未命中时生成未绑定目标的卡片（可预填工作区）并提示手动指定。**该能力需要重启一次 dsh web 加载宿主半边**（客户端部分刷新页面即可）
+- **会话通知（agent 工具）**：宿主半边注册 agent 工具 `taskcard_notify(target, content)`、`taskcard_delete` 与会话投影 `taskcards`（**仅主代理会话可调用**：子代理调用会被拒绝并提示回报主代理）。任意会话的 agent 调用该工具后，本插件自动生成一张**已预设目标会话/工作区**的待办任务卡（来源标记「会话通知」，默认不加入顺序执行），用户只需在面板点一次【执行】即把任务投递到目标会话；`target` 支持标题**模糊匹配**（精确/前缀/包含）、「工作区-会话」复合写法或会话 id 前缀/包含（**不提供反向包含**）；同名会话**优先在通知来源会话所属工作区**内解析，未命中时生成未绑定目标的卡片（可预填工作区）并提示手动指定。**该能力需要重启一次 dsh web 加载宿主半边**（客户端部分刷新页面即可）
 - **入口（方案 B）**：右侧栏「+ 新标签页 → 待办任务」添加（引导入口），打开后与文件/浏览器面板同款 dock 行为；面板内创建任务默认绑定该标签页所属会话；旧的 shell.overlay 抽屉已移除
 
 ## 文件
@@ -30,10 +30,10 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 | --- | --- |
 | `package.json` | dsh.client.inject：locale / ui-conversation / ui-primitives / ui-workspace |
 | `cordis.patch.yml` | bundle patch（宿主注册工具 `taskcard_notify` 与会话投影 `taskcards`） |
-| `lib/index.js` | 宿主半边：注册 agent 工具 `taskcard_notify` + session projection `taskcards`（零 npm 依赖，运行时只用到 `.parse`，故用 pass-through schema） |
+| `lib/index.js` | 宿主半边：注册 agent 工具 `taskcard_notify` / `taskcard_delete` + session projection `taskcards`（零 npm 依赖；投影 state `{notices, deletions}`，schema 用 pass-through，运行时只用到 `.parse`） |
 | `lib/client.js` | 浏览器 bundle（ModuleLoader CJS 工厂，单文件 region 分区） |
 
-## 会话通知（agent 工具 `taskcard_notify`）
+## 会话通知（agent 工具 `taskcard_notify` / `taskcard_delete`）
 
 半自动跨会话投递：让某个会话的 agent 把任务「投」给另一个会话。
 
@@ -63,7 +63,31 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 2. 【待办任务】面板自动出现一张卡片：标题/派发文本 = `content`，**执行会话/工作区已预设为 target 对应会话**，来源「会话通知」，默认不参与顺序执行。
 3. 你在面板点一次【执行】→ 任务以用户消息形式投递到目标会话（queue 模式，目标忙时排队），卡片状态随后按回合观察器更新（queued → running → done）。
 
-实现要点：工具通过官方 `appendPluginRecord` 向调用方会话写入**插件记录事件** `plugin:ui-taskcards/notify`（带 `ignorable` 标记，宿主重启后仍可正常加载；不会因未知事件类型拒读会话日志）；宿主投影 fold 成 `{ notices: [...] }`（最多 20 条），并**同时兼容旧事件类型** `taskcards/notify`（历史会话的卡片照常显示）；客户端从 `projectionValues.taskcards.notices` 消费并去重（`noticeSeen` 持久化），因此刷新页面不会重复建卡。
+实现要点：工具通过官方 `appendPluginRecord` 向调用方会话写入**插件记录事件**（带 `ignorable` 标记，宿主重启后仍可正常加载；不会因未知事件类型拒读会话日志）；宿主投影 fold 成 `{ notices: [...], deletions: [...] }`（notices ≤20、deletions ≤50），并**同时兼容旧事件类型** `taskcards/notify`（历史会话的卡片照常显示）；客户端从 `projectionValues.taskcards` 消费并去重（`noticeSeen` / `deletionSeen` 持久化），因此刷新页面不会重复建卡/重复删卡。
+
+### 删除卡片（`taskcard_delete`）
+
+Agent 可删除自己创建的错误/过期卡片（活动列表与历史归档都会删）：
+
+```json
+{ "id": "<taskcard_notify 返回的 id>" }        // 删除会话通知卡
+{ "content": "<todo 标题>" }                    // 删除本会话 todo 采集的卡（规范化匹配）
+```
+
+- 两个参数**二选一**；content 匹配与客户端一致（忽略大小写/标点/空白差异）；
+- **返回语义**（`status`）——不会静默成功：
+  | status | 含义 | 是否写入删除记录 |
+  | --- | --- | --- |
+  | `deleted` | 卡片存在且未删过 → 已排入删除 | ✅ |
+  | `already_deleted` | 最近一条删除记录晚于最近一次建卡 → 无需重复删 | ❌ |
+  | `not_found` | 判定卡片不存在（返回 `ok:false`） | ❌ |
+  | `forced` | 判定不存在但传了 `force:true` → 强制排入删除 | ✅ |
+  | `submitted` | 宿主无法读取事件日志时的降级（仍写入） | ✅ |
+- `force:true`（仅字面 true）用于跨会话/历史卡片：宿主的存在性判定基于**调用方会话自己的事件日志**，看不到别的会话创建的卡片时请用 force；
+- 卡片被重新建出后可以再次删除（时序判定：删除记录晚于最新建卡才算 `already_deleted`）；
+- 归一化后为空的内容（纯空白/纯标点）会被拒绝，避免无意义删除。
+
+> ⚠️ `taskcard_notify` / `taskcard_delete` **仅允许主代理会话调用**：子代理（`delegationDepth>0` 或带 `parentSession`）调用会报错，请把结论回报主代理，由主代理统一建卡/删卡。
 
 > 依赖说明：`appendPluginRecord` 来自宿主自带的 `@deepseek-ai/dsh-session`（本插件不打包、不引入 npm 依赖，运行时从宿主安装目录解析；解析不到时工具会明确报错并**不会**回退成裸 `session.append`，避免再次写坏会话日志）。
 

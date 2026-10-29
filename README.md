@@ -21,7 +21,7 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 - **顺序执行**：每会话一台状态机（idle/dispatching/waiting-running/waiting-interaction/advancing/stopped）；复合轮次结束判定（running=false 且收件队列空，队列不可探测时降级为 3s 连续空闲）；pendingInteraction 暂停 + 10s 恢复计时；批次内同工作区复用新建会话（`seqIsolatedSessions` 可切逐卡新建）；连续 3 张 blocked 即停止；顺序执行开关（⛓）默认关闭且不持久化（每次打开页面需手动开启）；由会话 todos 自动捕获的卡片默认不加入顺序执行队列，可在「修改」中显式加入；跨窗口存储同步时会立即停止本窗口在途的顺序执行批次
 - **目标解析**：会话存活→直接派发+归属自愈；无会话有工作区→`sessions.create({workspaceId})` 新建并回写；否则拦截引导设置工作区
 - **幂等**：write-ahead lastDispatch + requestId 单飞检查；跨窗口 storage 事件同步
-- **会话通知（agent 工具）**：宿主半边注册 agent 工具 `taskcard_notify(target, content)`、`taskcard_delete` 与会话投影 `taskcards`（**仅主代理会话可调用**：子代理调用会被拒绝并提示回报主代理）。任意会话的 agent 调用该工具后，本插件自动生成一张**已预设目标会话/工作区**的待办任务卡（来源标记「会话通知」，默认不加入顺序执行），用户只需在面板点一次【执行】即把任务投递到目标会话；`target` 支持标题**模糊匹配**（精确/前缀/包含）、「工作区-会话」复合写法或会话 id 前缀/包含（**不提供反向包含**）；同名会话**优先在通知来源会话所属工作区**内解析，未命中时生成未绑定目标的卡片（可预填工作区）并提示手动指定。**该能力需要重启一次 dsh web 加载宿主半边**（客户端部分刷新页面即可）
+- **会话通知（agent 工具）**：宿主半边注册 agent 工具 `taskcard_notify(target, content)`、`taskcard_delete` 与会话投影 `taskcards`（**仅主代理会话可调用**：`delegationDepth = 0`，含 fork 出来的主会话；子代理 `delegationDepth ≥ 1` 会被拒绝并提示回报主代理）。任意会话的 agent 调用该工具后，本插件自动生成一张**已预设目标会话/工作区**的待办任务卡（来源标记「会话通知」，默认不加入顺序执行），用户只需在面板点一次【执行】即把任务投递到目标会话；`target` 支持标题**模糊匹配**（精确/前缀/包含）、「工作区-会话」复合写法或会话 id 前缀/包含（**不提供反向包含**）；同名会话**优先在通知来源会话所属工作区**内解析，未命中时生成未绑定目标的卡片（可预填工作区）并提示手动指定。**该能力需要重启一次 dsh web 加载宿主半边**（客户端部分刷新页面即可）
 - **入口（方案 B）**：右侧栏「+ 新标签页 → 待办任务」添加（引导入口），打开后与文件/浏览器面板同款 dock 行为；面板内创建任务默认绑定该标签页所属会话；旧的 shell.overlay 抽屉已移除
 
 ## 文件
@@ -92,7 +92,7 @@ Agent 可删除自己创建的错误/过期卡片（活动列表与历史归档�
 - 卡片被重新建出后可以再次删除（时序判定：删除记录晚于最新建卡才算 `already_deleted`）；
 - 归一化后为空的内容（纯空白/纯标点）会被拒绝，避免无意义删除。
 
-> ⚠️ `taskcard_notify` / `taskcard_delete` **仅允许主代理会话调用**：子代理（`delegationDepth>0` 或带 `parentSession`）调用会报错，请把结论回报主代理，由主代理统一建卡/删卡。
+> ⚠️ `taskcard_notify` / `taskcard_delete` **仅允许主代理会话调用**（`delegationDepth = 0`，含 fork 出来的主会话）；子代理 `delegationDepth ≥ 1` 调用会报错，请把结论回报主代理，由主代理统一建卡/删卡。
 
 > 依赖说明：`appendPluginRecord` 来自宿主自带的 `@deepseek-ai/dsh-session`（本插件不打包、不引入 npm 依赖，运行时从宿主安装目录解析；解析不到时工具会明确报错并**不会**回退成裸 `session.append`，避免再次写坏会话日志）。
 

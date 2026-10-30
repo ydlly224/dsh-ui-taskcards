@@ -11,7 +11,7 @@
 
 DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）：**官方右侧栏原生标签页「待办任务」**（`sidebarRightTabs` 注册类型 + `sidebar.right.pane.tab` 槽位，与「工作区文件/浏览器/终端」同一套 dock 体验：可拖拽分栏、全屏、宽度拖拽、会话级布局记忆）+ 输入框固定按钮（`conversation.composer.dock`）。
 
-> 兼容性：DSH Web 0.1.x ~ 0.2.x（依赖官方 `sidebarRightTabs` 服务与 `sidebar.right.pane.tab` 槽位；在 0.2.1-rc.2 上验证）。纯客户端 bundle，无 npm 依赖。
+> 兼容性：DSH Web 0.1.x ~ 0.2.x（依赖官方 `sidebarRightTabs` 服务与 `sidebar.right.pane.tab` 槽位；在 **0.2.1-rc.5** 上完整实测通过：建卡/读卡/撤回/派发/修改/顺序执行面板，右侧栏注册已改为 `ctx.inject(['sidebarRightTabs'])` 时序安全写法）。纯客户端 bundle，无 npm 依赖。
 
 ## 功能
 
@@ -132,4 +132,4 @@ A pure client-side plugin for [DeepSeek Harness](https://github.com/deepseek-ai)
 
 - Repo: https://github.com/ydlly224/dsh-ui-taskcards
 - Install: `dsh plugin --profile web add git+https://github.com/ydlly224/dsh-ui-taskcards.git`, then register the bundle name in `~/.dsh/profiles/web/package.json` → `dsh.profile.bundles`, restart dsh web and refresh.
-- Extends: DSH Web 0.1.x ~ 0.2.x (verified on 0.2.1-rc.2); pure client bundle, zero dependencies.
+- Extends: DSH Web 0.1.x ~ 0.2.x (verified on **0.2.1-rc.5**: create/read/withdraw/dispatch/edit/sequencer; right-sidebar registration now uses the timing-safe `ctx.inject(['sidebarRightTabs'])`); pure client bundle, zero dependencies.

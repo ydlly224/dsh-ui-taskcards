@@ -65,6 +65,8 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 
 实现要点：工具通过官方 `appendPluginRecord` 向调用方会话写入**插件记录事件**（带 `ignorable` 标记，宿主重启后仍可正常加载；不会因未知事件类型拒读会话日志）；宿主投影 fold 成 `{ notices: [...], deletions: [...] }`（notices ≤20、deletions ≤50），并**同时兼容旧事件类型** `taskcards/notify`（历史会话的卡片照常显示）；客户端从 `projectionValues.taskcards` 消费并去重（`noticeSeen` / `deletionSeen` 持久化），因此刷新页面不会重复建卡/重复删卡。
 
+> 通知正文长度：`taskcard_notify` 的单卡正文上限为 **20000 字符**（原 4000 已放宽）；超过上限时不再静默截断，而是在正文末尾追加「…（内容过长已截断：原文 N 字，上限 20000 字）」。`taskcard_delete` 的 content 上限同步为 20000，保证任何能建出的卡都能按内容删除。
+>
 > 双窗口（同时打开两个 DSH Web 界面）：卡片执行状态改为**显示层派生**——`queued/running` 卡片只要目标会话正在运行就显示 running（闪烁），因此两个窗口都会闪；跨窗口同步改为**按卡片 `updatedAt` 合并**（旧窗口的过期状态不会把 running 覆盖回 pending/queued），并由 **localStorage 心跳租约**选出唯一「写者窗口」负责状态落盘与派发（2s 心跳 / 5s 超时 / 手动执行可强制接管），避免双写抢跑 done。
 >
 > 采集开关：`autoCapture` 默认 `false`（持久化，面板头部切换）。关闭时新 todo 不建卡，且载入/跨窗口同步会剔除活动列表里的 todo 卡，避免旧标签页写回造成反复出现。

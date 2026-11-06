@@ -1,6 +1,6 @@
 {
   "name": "dsh-ui-taskcards",
-  "version": "0.6.5",
+  "version": "0.7.0",
   "engines": {
     "node": ">=18.0.0",
     "dsh": ">=0.1.0-rc.8 <0.3.0"
@@ -8,6 +8,9 @@
   "description": "DSH web UI right-sidebar todo-task tab: capture todos as durable tasks, schedule, prioritize, sequential run; host tool taskcard_notify lets an agent create a task card preset to another session (client tab + host half)",
   "type": "module",
   "main": "lib/index.js",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
   "exports": {
     ".": {
       "default": "./lib/index.js"

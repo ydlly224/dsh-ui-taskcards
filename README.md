@@ -11,7 +11,7 @@
 
 DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）：**官方右侧栏原生标签页「待办任务」**（`sidebarRightTabs` 注册类型 + `sidebar.right.pane.tab` 槽位，与「工作区文件/浏览器/终端」同一套 dock 体验：可拖拽分栏、全屏、宽度拖拽、会话级布局记忆）+ 输入框固定按钮（`conversation.composer.dock`）。
 
-> 兼容性：DSH Web 0.1.x ~ 0.2.x（依赖官方 `sidebarRightTabs` 服务与 `sidebar.right.pane.tab` 槽位；在 **0.2.1-rc.5** 上完整实测通过：建卡/读卡/撤回/派发/修改/顺序执行面板，右侧栏注册已改为 `ctx.inject(['sidebarRightTabs'])` 时序安全写法）。纯客户端 bundle，无 npm 依赖。
+> 兼容性：DSH Web 0.1.x ~ 0.2.x（依赖官方 `sidebarRightTabs` 服务与 `sidebar.right.pane.tab` 槽位；已在 **0.2.1-rc.5** 与 **0.2.2-rc.1** 上完整实测通过：建卡/读卡/撤回/派发/修改/顺序执行面板，右侧栏注册使用 `ctx.inject(['sidebarRightTabs'])` 时序安全写法；0.2.2-rc.1 连续多日实际使用无异常；v0.7.0 宿主执行 API `POST /api/collab/taskcard-execute` 的注册方式（`connection.fetch.register` 登录围栏内注册）已在 **0.2.1-rc.5** 真机核实）。纯客户端 bundle，无 npm 依赖。
 
 ## 功能
 
@@ -30,8 +30,9 @@ DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）�
 | --- | --- |
 | `package.json` | dsh.client.inject：locale / ui-conversation / ui-primitives / ui-workspace |
 | `cordis.patch.yml` | bundle patch（宿主注册工具 `taskcard_notify` 与会话投影 `taskcards`） |
-| `lib/index.js` | 宿主半边：注册 agent 工具 `taskcard_notify` / `taskcard_delete` + session projection `taskcards`（零 npm 依赖；投影 state `{notices, deletions}`，schema 用 pass-through，运行时只用到 `.parse`） |
+| `lib/index.js` | 宿主半边：注册 agent 工具 `taskcard_notify` / `taskcard_delete` + session projection `taskcards` + 宿主执行 API `POST /api/collab/taskcard-execute`（v0.7.0，`connection.fetch.register` 登录围栏内；零 npm 依赖；投影 state `{notices, deletions}`，schema 用 pass-through，运行时只用到 `.parse`） |
 | `lib/client.js` | 浏览器 bundle（ModuleLoader CJS 工厂，单文件 region 分区） |
+| `test/taskcard-execute.test.mjs` | 宿主执行 API 测试（node:test + node:assert/strict，零依赖，30 用例） |
 
 ## 会话通知（agent 工具 `taskcard_notify` / `taskcard_delete`）
 
@@ -104,6 +105,85 @@ Agent 可删除自己创建的错误/过期卡片（活动列表与历史归档�
 
 > ⚠️ 宿主半边（`lib/index.js`）在 dsh web 启动时加载：**首次安装或升级含宿主改动的版本后，需要重启一次 dsh web**；仅客户端改动刷新页面即可。
 
+## 宿主执行 API（v0.7.0+）
+
+`POST /api/collab/taskcard-execute` —— 让已登录的客户端（浏览器标签页、油猴脚本、curl 等）**不经面板**把一条任务直接投递到指定会话。宿主半边通过 `connection.fetch.register` 注册这一条精确路由（`requestBody: 'buffered'`），登录围栏、幂等与限流全部在宿主侧完成。
+
+- **路径/方法**：`POST /api/collab/taskcard-execute`（精确路由，仅此一条，不经 webServer）
+- **登录围栏**：与 `/api/collab/*` 其余路由**同源同围栏**——浏览器同源页面自动携带的**签名登录 cookie**（DSH 0.2.2-rc.1 只认 cookie，**不支持 `Authorization: Bearer` 头**；带 `?token=` 的链接会先完成换取 cookie）。未携带有效 cookie 的请求在宿主 admit 层直接 401，**不会进入本插件的 handler**。围栏内即 human 级写权限，**没有独立的角色头**：能调通本接口，就等于你本人在面板上点了一次【执行】
+- **向后兼容**：纯增量——agent 工具（`taskcard_notify` / `taskcard_delete`）、会话投影 `taskcards`、面板行为与存储格式**全部不变**，老版本面板照常工作；升级到 0.7.0 后需**重启一次 dsh web** 加载宿主半边（客户端刷新页面即可）
+
+### 请求
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `content` | string | ✅ | 任务正文（以用户消息投递到目标会话）；trim 后 1..20000 字 |
+| `sessionId` | string | — | 目标会话 id（与 `workspaceId` 二选一）；直接 queue 投递；**与 `workspaceId` 同时给出时以 `sessionId` 为准**（`workspaceId` 仅原样回显，不会新建会话） |
+| `workspaceId` | string | — | 目标工作区 id（与 `sessionId` 二选一）；先 `sessionController.create({workspaceId})` 新建会话再投递 |
+| `requestId` | string | — | 幂等键，1..200 字；缺省时由宿主生成 UUID 并在响应中返回 |
+
+`sessionId` / `workspaceId` 均要求 trim 后非空且 ≤200 字，否则 `target-invalid`。两者同时给出时**以 `sessionId` 为准**，不会为 `workspaceId` 新建会话。
+
+### 响应
+
+成功（200）：
+
+| 字段 | 说明 |
+| --- | --- |
+| `ok` | `true` |
+| `sessionId` | 实际接收任务的会话（`workspaceId` 路径下为新建会话的 id） |
+| `workspaceId` | 仅 `workspaceId` 路径回显 |
+| `requestId` | 本次请求的幂等键（缺省时为宿主生成的 UUID） |
+
+所有响应均为 `content-type: application/json; charset=utf-8` + `cache-control: no-store`。
+
+### 错误
+
+错误响应体统一为 `{ "ok": false, "reason": "<reason>" }`：
+
+| HTTP | reason | 含义 |
+| --- | --- | --- |
+| 400 | `body-invalid` | 请求体不是合法 JSON 对象 |
+| 400 | `content-invalid` | `content` 缺失/非字符串/纯空白/trim 后超过 20000 字 |
+| 400 | `target-invalid` | `sessionId`/`workspaceId` 非字符串、纯空白或超过 200 字 |
+| 400 | `target-unresolved` | `sessionId` 与 `workspaceId` 都未提供 |
+| 400 | `request-id-invalid` | `requestId` 非字符串或不在 1..200 字 |
+| 401 | —（宿主 admit 层） | 未登录：请求不会进入本 handler |
+| 404 | `session-not-found` | 目标会话不存在（`session/not-found`） |
+| 404 | `workspace-not-found` | 目标工作区不存在（注册表校验或 `workspace/not-found`） |
+| 409 | `session-busy` | 目标会话忙（`session/agent-busy` / `session/writer-held`；可稍后重试） |
+| 429 | `rate-limited` | 滑动窗口限流超限（30 次/60s） |
+| 502 | `dispatch-failed` | 投递失败（服务缺失/未知错误/`accepted:false`；**不回显内部错误信息**） |
+| 502 | `create-failed` | `workspaceId` 路径下新建会话失败 |
+| 500 | `internal-error` | handler 未预期异常（同样不泄露内部信息） |
+
+### 幂等与限流
+
+- **幂等**：带同一 `requestId` 重试，**10 分钟内**直接返回首次成功的响应体，不重复投递，也**不占限流额度**（仅成功响应入缓存；缓存上限 500 条，超限逐出最旧）。`requestId` 缺省时响应返回的 UUID 不参与幂等缓存——重试请自带 `requestId`
+- **限流**：每 60 秒滑动窗口最多 **30 次**请求（除幂等重放外，凡通过 body 字段校验的请求都计数——包括 `target-unresolved` / `session-not-found` 等目标解析失败的请求；超限统一 429 `rate-limited`）
+
+### curl 示例
+
+`sessionId` 直投：
+
+```bash
+curl -X POST http://127.0.0.1:3080/api/collab/taskcard-execute \
+  -H 'content-type: application/json' \
+  -b '<从浏览器复制的 DSH 会话 cookie>' \
+  -d '{"content":"任务：跑一遍回归并回报结果","sessionId":"session-7bb5","requestId":"run-042"}'
+```
+
+`workspaceId` 新建会话再投递：
+
+```bash
+curl -X POST http://127.0.0.1:3080/api/collab/taskcard-execute \
+  -H 'content-type: application/json' \
+  -b '<从浏览器复制的 DSH 会话 cookie>' \
+  -d '{"content":"任务：在新工作区跑冒烟测试","workspaceId":"ws-1"}'
+```
+
+> 注：投递语义与面板【执行】一致（`sessionController.prompt` `mode=queue`，任务以用户消息进入目标会话的收件队列）。本 API **不创建面板卡片**——面板卡片存于浏览器 localStorage，宿主不可写；如需卡片留痕请让 agent 调 `taskcard_notify`。
+
 ## 安装
 
 ```bash
@@ -122,6 +202,7 @@ dsh plugin --profile web add file:<本插件目录>
 ```
 node --check lib/index.js   # 通过
 node --check lib/client.js  # 通过
+npm test                    # node --test test/*.test.mjs，全绿
 ```
 
 ## 已知边界
@@ -136,4 +217,4 @@ A pure client-side plugin for [DeepSeek Harness](https://github.com/deepseek-ai)
 
 - Repo: https://github.com/ydlly224/dsh-ui-taskcards
 - Install: `dsh plugin --profile web add git+https://github.com/ydlly224/dsh-ui-taskcards.git`, then register the bundle name in `~/.dsh/profiles/web/package.json` → `dsh.profile.bundles`, restart dsh web and refresh.
-- Extends: DSH Web 0.1.x ~ 0.2.x (verified on **0.2.1-rc.5**: create/read/withdraw/dispatch/edit/sequencer; right-sidebar registration now uses the timing-safe `ctx.inject(['sidebarRightTabs'])`); pure client bundle, zero dependencies.
+- Extends: DSH Web 0.1.x ~ 0.2.x (verified on **0.2.1-rc.5** and **0.2.2-rc.1**: create/read/withdraw/dispatch/edit/sequencer; the timing-safe `ctx.inject(['sidebarRightTabs'])` registration; zero issues across several days of real use on 0.2.2-rc.1); pure client bundle, zero dependencies.

@@ -11,7 +11,7 @@
 
 DSH（DeepSeek Harness）Web UI 的插件（客户端 bundle + 宿主半边）：**官方右侧栏原生标签页「待办任务」**（`sidebarRightTabs` 注册类型 + `sidebar.right.pane.tab` 槽位，与「工作区文件/浏览器/终端」同一套 dock 体验：可拖拽分栏、全屏、宽度拖拽、会话级布局记忆）+ 输入框固定按钮（`conversation.composer.dock`）。
 
-> 兼容性：DSH Web 0.1.x ~ 0.2.x（依赖官方 `sidebarRightTabs` 服务与 `sidebar.right.pane.tab` 槽位；已在 **0.2.1-rc.5** 与 **0.2.2-rc.1** 上完整实测通过：建卡/读卡/撤回/派发/修改/顺序执行面板，右侧栏注册使用 `ctx.inject(['sidebarRightTabs'])` 时序安全写法；0.2.2-rc.1 连续多日实际使用无异常；v0.7.0 宿主执行 API `POST /api/collab/taskcard-execute` 的注册方式（`connection.fetch.register` 登录围栏内注册）已在 **0.2.1-rc.5** 真机核实）。纯客户端 bundle，无 npm 依赖。
+> 兼容性：DSH Web 0.1.x ~ 0.2.x（依赖官方 `sidebarRightTabs` 服务与 `sidebar.right.pane.tab` 槽位；已在 **0.2.1-rc.5**、**0.2.2-rc.1** 与 **0.2.2-rc.5** 上完整实测通过：建卡/读卡/撤回/派发/修改/顺序执行面板，右侧栏注册使用 `ctx.inject(['sidebarRightTabs'])` 时序安全写法；0.2.2-rc.1 连续多日实际使用无异常；v0.7.0 宿主执行 API `POST /api/collab/taskcard-execute` 已在 **0.2.2-rc.5** 真机跑通全链路：无 cookie → 401 围栏、`content-invalid`/`target-unresolved` → 400、`workspace-not-found` → 404、真实投递 → 200 且消息进入目标会话、同 `requestId` 重放只投递一次）。纯客户端 bundle，无 npm 依赖。
 
 ## 功能
 
@@ -217,4 +217,4 @@ A pure client-side plugin for [DeepSeek Harness](https://github.com/deepseek-ai)
 
 - Repo: https://github.com/ydlly224/dsh-ui-taskcards
 - Install: `dsh plugin --profile web add git+https://github.com/ydlly224/dsh-ui-taskcards.git`, then register the bundle name in `~/.dsh/profiles/web/package.json` → `dsh.profile.bundles`, restart dsh web and refresh.
-- Extends: DSH Web 0.1.x ~ 0.2.x (verified on **0.2.1-rc.5** and **0.2.2-rc.1**: create/read/withdraw/dispatch/edit/sequencer; the timing-safe `ctx.inject(['sidebarRightTabs'])` registration; zero issues across several days of real use on 0.2.2-rc.1); pure client bundle, zero dependencies.
+- Extends: DSH Web 0.1.x ~ 0.2.x (verified on **0.2.1-rc.5**, **0.2.2-rc.1** and **0.2.2-rc.5**: create/read/withdraw/dispatch/edit/sequencer; the timing-safe `ctx.inject(['sidebarRightTabs'])` registration; the v0.7.0 host execute API exercised end-to-end on 0.2.2-rc.5 — 401 fence without cookie, 400 `content-invalid`/`target-unresolved`, 404 `workspace-not-found`, 200 with real delivery, and a same-`requestId` replay delivering exactly once); pure client bundle, zero dependencies.
